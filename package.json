@@ -1,9 +1,23 @@
 {
-  "name": "brawl-stars-proje",
+  "name": "brawl-stars-monitor",
   "version": "1.0.0",
+  "description": "Brawl Stars anlik mac takibi ve Telegram bildirimi",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
-  "dependencies": {}
+  "dependencies": {
+    "axios": "^1.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": [
+    "brawlstars",
+    "telegram",
+    "bot",
+    "nodejs"
+  ],
+  "author": "Developer",
+  "license": "ISC"
 }
