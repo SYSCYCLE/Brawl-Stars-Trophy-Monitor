@@ -12,8 +12,8 @@ const API_URL = `https://api.brawlstars.com/v1/players/${ENCODED_TAG}/battlelog`
 let lastBattleTime = null;
 
 const server = http.createServer((req, res) => {
-    res.writeHead(200);
-    res.end('Hizli Mod (5sn) Calisiyor...');
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('OK');
 });
 server.listen(process.env.PORT || 3000);
 
@@ -26,15 +26,15 @@ async function sendTelegram(message) {
             parse_mode: 'HTML',
             disable_web_page_preview: true
         });
-        console.log("📨 Telegram gönderildi.");
+        console.log("Telegram gonderildi.");
     } catch (err) {
-        console.error("Telegram Hatası:", err.message);
+        console.error(err.message);
     }
 }
 
 async function checkBattles() {
     if (!BS_TOKEN || !PLAYER_TAG) {
-        console.log("⚠️ Ayarlar eksik!");
+        console.log("Ayarlar eksik");
         return;
     }
 
@@ -54,15 +54,13 @@ async function checkBattles() {
 
         if (lastBattleTime === null) {
             lastBattleTime = battleTime;
-            console.log(`✅ Sistem Başladı (5sn). Son maç: ${battleTime}`);
+            console.log(`Basladi. Son mac: ${battleTime}`);
             return;
         }
 
-        if (battleTime === lastBattleTime) {
-            return;
-        }
+        if (battleTime === lastBattleTime) return;
 
-        console.log("🔥 YENİ MAÇ!");
+        console.log("YENI MAC!");
 
         const eventMode = latestBattle.event.mode || "Bilinmiyor";
         const mapName = latestBattle.event.map || "Harita Yok";
@@ -86,10 +84,10 @@ async function checkBattles() {
         }
 
         let resultEmoji = "❓";
-        let resultText = "SONUÇ YOK";
+        let resultText = "SONUC YOK";
 
         if (result === 'victory') { resultEmoji = "🏆"; resultText = "ZAFER"; }
-        else if (result === 'defeat') { resultEmoji = "❌"; resultText = "YENİLGİ"; }
+        else if (result === 'defeat') { resultEmoji = "❌"; resultText = "YENILGI"; }
         else if (result === 'draw') { resultEmoji = "⚖️"; resultText = "BERABERE"; }
         else if (latestBattle.battle.rank) { 
             resultEmoji = latestBattle.battle.rank === 1 ? "🥇" : "#️⃣";
@@ -118,17 +116,14 @@ ${starPlayerText}
         lastBattleTime = battleTime;
 
     } catch (error) {
-        if (error.response && error.response.status === 429) {
-            console.error("⛔ ÇOK HIZLI İSTEK (429)! 5 saniye çok geldi, Supercell engelledi.");
-        } else if (error.response && error.response.status === 403) {
-            console.error("⛔ IP HATASI (403). Render IP değişmiş olabilir.");
+        if (error.response && error.response.status === 403) {
+            console.error("IP YETKI HATASI");
             axios.get('https://api.ipify.org?format=json').then(r => console.log("IP:", r.data.ip));
         } else {
-            console.error("Hata:", error.message);
+            console.error(error.message);
         }
     }
 }
 
 setInterval(checkBattles, 5000);
-
 checkBattles();
