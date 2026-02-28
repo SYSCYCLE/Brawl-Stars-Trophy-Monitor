@@ -1,15 +1,30 @@
 const axios = require('axios');
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 
 const BS_TOKEN = process.env.BRAWL_STARS_TOKEN;
 const PLAYER_TAG = process.env.PLAYER_TAG; 
 const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TG_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
+const LOG_FILE = path.join(__dirname, 'processed_matches.log');
 const ENCODED_TAG = PLAYER_TAG ? PLAYER_TAG.replace('#', '%23') : '';
 const API_URL = `https://api.brawlstars.com/v1/players/${ENCODED_TAG}/battlelog`;
 
-let lastBattleTime = null;
+function getProcessedMatches() {
+    if (!fs.existsSync(LOG_FILE)) return [];
+    try {
+        return fs.readFileSync(LOG_FILE, 'utf8').split('\n').filter(Boolean);
+    } catch (e) { return []; }
+}
+
+function saveMatchToLog(battleTime) {
+    let matches = getProcessedMatches();
+    matches.push(battleTime);
+    if (matches.length > 50) matches = matches.slice(-50);
+    fs.writeFileSync(LOG_FILE, matches.join('\n'), 'utf8');
+}
 
 const server = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -26,102 +41,79 @@ async function sendTelegram(message) {
             parse_mode: 'HTML',
             disable_web_page_preview: true
         });
-        console.log("Telegram gonderildi.");
-    } catch (err) {
-        console.error(err.message);
-    }
+    } catch (err) { console.error("TG Hata:", err.message); }
 }
 
 async function checkBattles() {
-    if (!BS_TOKEN || !PLAYER_TAG) {
-        console.log("Ayarlar eksik");
-        return;
-    }
+    if (!BS_TOKEN || !PLAYER_TAG) return;
 
     try {
         const response = await axios.get(API_URL, {
-            headers: { 
-                'Authorization': `Bearer ${BS_TOKEN}`,
-                'Accept': 'application/json'
-            }
+            headers: { 'Authorization': `Bearer ${BS_TOKEN}`, 'Accept': 'application/json' }
         });
 
         const battles = response.data.items;
         if (!battles || battles.length === 0) return;
 
-        const latestBattle = battles[0];
-        const battleTime = latestBattle.battleTime;
-
-        if (lastBattleTime === null) {
-            lastBattleTime = battleTime;
-            console.log(`Basladi. Son mac: ${battleTime}`);
+        const processedMatches = getProcessedMatches();
+        
+        if (processedMatches.length === 0) {
+            console.log("Hafıza boş, mevcut maçlar listeye ekleniyor...");
+            battles.forEach(b => saveMatchToLog(b.battleTime));
             return;
         }
+        
+        const newBattles = battles.filter(b => !processedMatches.includes(b.battleTime)).reverse();
 
-        if (battleTime === lastBattleTime) return;
+        for (const battle of newBattles) {
+            console.log("YENI MAC ISLENIYOR:", battle.battleTime);
 
-        console.log("YENI MAC!");
+            const eventMode = battle.event.mode || "Bilinmiyor";
+            const mapName = battle.event.map || "Harita Yok";
+            const result = battle.battle.result;
+            const trophyChange = battle.battle.trophyChange || 0;
+            const duration = battle.battle.duration ? `${battle.battle.duration} sn` : "Belirsiz";
+            const type = battle.battle.type;
 
-        const eventMode = latestBattle.event.mode || "Bilinmiyor";
-        const mapName = latestBattle.event.map || "Harita Yok";
-        const result = latestBattle.battle.result;
-        const trophyChange = latestBattle.battle.trophyChange || 0;
-        const duration = latestBattle.battle.duration ? `${latestBattle.battle.duration} sn` : "Belirsiz";
-        const type = latestBattle.battle.type;
-
-        let myHero = "Bilinmiyor";
-        let myPower = 0;
-        let myTrophies = 0;
-
-        if (latestBattle.battle.teams) {
-            const allPlayers = latestBattle.battle.teams.flat();
-            const me = allPlayers.find(p => p.tag === PLAYER_TAG);
+            let myHero = "Bilinmiyor", myPower = 0, myTrophies = 0;
+            const allPlayers = battle.battle.teams ? battle.battle.teams.flat() : (battle.battle.players || []);
+            const me = allPlayers.find(p => p.tag === (PLAYER_TAG.startsWith('#') ? PLAYER_TAG : '#' + PLAYER_TAG));
+            
             if (me) {
                 myHero = me.brawler.name;
                 myPower = me.brawler.power;
                 myTrophies = me.brawler.trophies;
             }
-        }
 
-        let resultEmoji = "❓";
-        let resultText = "SONUC YOK";
+            let resultEmoji = "❓", resultText = "SONUC YOK";
+            if (result === 'victory') { resultEmoji = "🏆"; resultText = "ZAFER"; }
+            else if (result === 'defeat') { resultEmoji = "❌"; resultText = "YENILGI"; }
+            else if (result === 'draw') { resultEmoji = "⚖️"; resultText = "BERABERE"; }
+            else if (battle.battle.rank) { 
+                resultEmoji = battle.battle.rank === 1 ? "🥇" : "#️⃣";
+                resultText = `${battle.battle.rank}. Oldun`;
+            }
 
-        if (result === 'victory') { resultEmoji = "🏆"; resultText = "ZAFER"; }
-        else if (result === 'defeat') { resultEmoji = "❌"; resultText = "YENILGI"; }
-        else if (result === 'draw') { resultEmoji = "⚖️"; resultText = "BERABERE"; }
-        else if (latestBattle.battle.rank) { 
-            resultEmoji = latestBattle.battle.rank === 1 ? "🥇" : "#️⃣";
-            resultText = `${latestBattle.battle.rank}. Oldun`;
-        }
+            const trophyStr = trophyChange >= 0 ? `+${trophyChange}` : `${trophyChange}`;
+            const isStarPlayer = battle.battle.starPlayer && battle.battle.starPlayer.tag === me?.tag;
+            const starPlayerText = isStarPlayer ? "\n🌟 <b>STAR PLAYER!</b> 🌟" : "";
 
-        const trophyStr = trophyChange > 0 ? `+${trophyChange}` : `${trophyChange}`;
-        const isStarPlayer = latestBattle.battle.starPlayer && latestBattle.battle.starPlayer.tag === PLAYER_TAG;
-        const starPlayerText = isStarPlayer ? "🌟 <b>STAR PLAYER!</b> 🌟" : "";
-
-        const msg = `
-<b>${resultEmoji} SONUÇ: ${resultText}</b> (${trophyStr} Kupa)
-
+            const msg = `<b>${resultEmoji} SONUÇ: {resultText}</b> (${trophyStr} Kupa)
 👾 <b>Karakter:</b> ${myHero} (Lv. ${myPower})
 🏆 <b>Kupa:</b> ${myTrophies}
-
 🗺️ <b>Harita:</b> ${mapName}
 🎮 <b>Mod:</b> ${eventMode.toUpperCase()}
 ⏱️ <b>Süre:</b> ${duration}
 🎲 <b>Tip:</b> ${type}
+${starPlayerText}`;
 
-${starPlayerText}
-        `;
-
-        await sendTelegram(msg);
-        lastBattleTime = battleTime;
+            await sendTelegram(msg);
+            saveMatchToLog(battle.battleTime);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
 
     } catch (error) {
-        if (error.response && error.response.status === 403) {
-            console.error("IP YETKI HATASI");
-            axios.get('https://api.ipify.org?format=json').then(r => console.log("IP:", r.data.ip));
-        } else {
-            console.error(error.message);
-        }
+        console.error("Hata:", error.message);
     }
 }
 
