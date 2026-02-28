@@ -33,7 +33,7 @@ const server = http.createServer((req, res) => {
 server.listen(process.env.PORT || 3000);
 
 async function sendTelegram(message) {
-    if (!TG_TOKEN || !TG_CHAT_ID) return;
+    if (!TG_TOKEN || !TG_CHAT_ID) return false;
     try {
         await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
             chat_id: TG_CHAT_ID,
@@ -41,8 +41,11 @@ async function sendTelegram(message) {
             parse_mode: 'HTML',
             disable_web_page_preview: true
         });
-        console.log("Telegram mesajı gönderildi.");
-    } catch (err) { console.error("TG Hata:", err.message); }
+        return true;
+    } catch (err) {
+        console.error("TG Hata:", err.message);
+        return false;
+    }
 }
 
 async function checkBattles() {
@@ -59,7 +62,6 @@ async function checkBattles() {
         const processedMatches = getProcessedMatches();
         
         if (processedMatches.length === 0) {
-            console.log("Hafıza boş, mevcut maçlar listeye ekleniyor...");
             battles.forEach(b => saveMatchToLog(b.battleTime));
             return;
         }
@@ -67,8 +69,6 @@ async function checkBattles() {
         const newBattles = battles.filter(b => !processedMatches.includes(b.battleTime)).reverse();
 
         for (const battle of newBattles) {
-            console.log("YENI MAC ISLENIYOR:", battle.battleTime);
-
             const eventMode = battle.event.mode || "Bilinmiyor";
             const mapName = battle.event.map || "Harita Yok";
             const result = battle.battle.result;
@@ -111,8 +111,14 @@ async function checkBattles() {
 🎲 <b>Tip:</b> ${type}
 ${starPlayerText}`;
 
-            await sendTelegram(msg);
-            saveMatchToLog(battle.battleTime);
+            const isSent = await sendTelegram(msg);
+
+            if (isSent) {
+                saveMatchToLog(battle.battleTime);
+            } else {
+                break; 
+            }
+            
             await new Promise(resolve => setTimeout(resolve, 1500));
         }
 
