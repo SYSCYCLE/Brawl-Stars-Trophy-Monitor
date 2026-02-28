@@ -98,9 +98,15 @@ async function checkBattles() {
             const isStarPlayer = battle.battle.starPlayer && battle.battle.starPlayer.tag === me?.tag;
             const starPlayerText = isStarPlayer ? "\n🌟 <b>STAR PLAYER!</b> 🌟" : "";
 
-            const msg = `<b>${resultEmoji} SONUÇ: {resultText}</b> (${trophyStr} Kupa)
-👾 <b>Karakter:</b> ${myHero} (Lv. ${myPower})
+            const msg = `// Değişkenleri güvenli bir şekilde metne gömmek için ${} kullanıyoruz
+            const resultEmojiStr = resultEmoji; // Zaten yukarıda tanımlı
+            const finalResultText = resultText; // Zaten yukarıda tanımlı
+
+            const msg = `<b>${resultEmojiStr} SONUÇ: ${finalResultText}</b> (${trophyStr} Kupa)
+
+👾 <b>Karakter:</b> ${myHero} (Sv. ${myPower})
 🏆 <b>Kupa:</b> ${myTrophies}
+
 🗺️ <b>Harita:</b> ${mapName}
 🎮 <b>Mod:</b> ${eventMode.toUpperCase()}
 ⏱️ <b>Süre:</b> ${duration}
