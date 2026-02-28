@@ -41,6 +41,7 @@ async function sendTelegram(message) {
             parse_mode: 'HTML',
             disable_web_page_preview: true
         });
+        console.log("Telegram mesajı gönderildi.");
     } catch (err) { console.error("TG Hata:", err.message); }
 }
 
@@ -77,7 +78,8 @@ async function checkBattles() {
 
             let myHero = "Bilinmiyor", myPower = 0, myTrophies = 0;
             const allPlayers = battle.battle.teams ? battle.battle.teams.flat() : (battle.battle.players || []);
-            const me = allPlayers.find(p => p.tag === (PLAYER_TAG.startsWith('#') ? PLAYER_TAG : '#' + PLAYER_TAG));
+            const normalizedTag = PLAYER_TAG.startsWith('#') ? PLAYER_TAG : '#' + PLAYER_TAG;
+            const me = allPlayers.find(p => p.tag === normalizedTag);
             
             if (me) {
                 myHero = me.brawler.name;
@@ -85,9 +87,9 @@ async function checkBattles() {
                 myTrophies = me.brawler.trophies;
             }
 
-            let resultEmoji = "❓", resultText = "SONUC YOK";
+            let resultEmoji = "❓", resultText = "SONUÇ YOK";
             if (result === 'victory') { resultEmoji = "🏆"; resultText = "ZAFER"; }
-            else if (result === 'defeat') { resultEmoji = "❌"; resultText = "YENILGI"; }
+            else if (result === 'defeat') { resultEmoji = "❌"; resultText = "YENİLGİ"; }
             else if (result === 'draw') { resultEmoji = "⚖️"; resultText = "BERABERE"; }
             else if (battle.battle.rank) { 
                 resultEmoji = battle.battle.rank === 1 ? "🥇" : "#️⃣";
@@ -95,14 +97,10 @@ async function checkBattles() {
             }
 
             const trophyStr = trophyChange >= 0 ? `+${trophyChange}` : `${trophyChange}`;
-            const isStarPlayer = battle.battle.starPlayer && battle.battle.starPlayer.tag === me?.tag;
-            const starPlayerText = isStarPlayer ? "\n🌟 <b>STAR PLAYER!</b> 🌟" : "";
+            const isStarPlayer = battle.battle.starPlayer && battle.battle.starPlayer.tag === normalizedTag;
+            const starPlayerText = isStarPlayer ? "\n🌟 <b>YILDIZ OYUNCU!</b> 🌟" : "";
 
-            const msg = `// Değişkenleri güvenli bir şekilde metne gömmek için ${} kullanıyoruz
-            const resultEmojiStr = resultEmoji; // Zaten yukarıda tanımlı
-            const finalResultText = resultText; // Zaten yukarıda tanımlı
-
-            const msg = `<b>${resultEmojiStr} SONUÇ: ${finalResultText}</b> (${trophyStr} Kupa)
+            const msg = `<b>${resultEmoji} SONUÇ: ${resultText}</b> (${trophyStr} Kupa)
 
 👾 <b>Karakter:</b> ${myHero} (Sv. ${myPower})
 🏆 <b>Kupa:</b> ${myTrophies}
@@ -115,7 +113,7 @@ ${starPlayerText}`;
 
             await sendTelegram(msg);
             saveMatchToLog(battle.battleTime);
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise(resolve => setTimeout(resolve, 1500));
         }
 
     } catch (error) {
