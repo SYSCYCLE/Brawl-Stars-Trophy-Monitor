@@ -26,86 +26,115 @@ function saveMatchToLog(battleTime) {
     fs.writeFileSync(LOG_FILE, matches.join('\n'), 'utf8');
 }
 
-http.createServer((req, res) => {
-    res.writeHead(200);
-    res.end('Bot is running');
-}).listen(process.env.PORT || 3000);
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('OK');
+});
+server.listen(process.env.PORT || 3000);
 
 async function sendTelegram(message) {
+    if (!TG_TOKEN || !TG_CHAT_ID) return false;
     try {
         await axios.post(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
             chat_id: TG_CHAT_ID,
             text: message,
-            parse_mode: 'HTML'
+            parse_mode: 'HTML',
+            disable_web_page_preview: true
         });
         return true;
     } catch (err) {
+        console.error("TG Hata:", err.message);
         return false;
     }
 }
 
 async function checkBattles() {
+    if (!BS_TOKEN || !PLAYER_TAG) return;
+
     try {
         const response = await axios.get(API_URL, {
-            headers: { 'Authorization': `Bearer ${BS_TOKEN}` }
+            headers: { 'Authorization': `Bearer ${BS_TOKEN}`, 'Accept': 'application/json' }
         });
 
         const battles = response.data.items;
-        if (!battles) return;
+        if (!battles || battles.length === 0) return;
 
         const processedMatches = getProcessedMatches();
+        
+        if (processedMatches.length === 0) {
+            battles.forEach(b => saveMatchToLog(b.battleTime));
+            return;
+        }
+        
         const newBattles = battles.filter(b => !processedMatches.includes(b.battleTime)).reverse();
 
         for (const battle of newBattles) {
             try {
-                const mode = battle.event.mode || "Bilinmiyor";
-                const map = battle.event.map || "Bilinmiyor";
-                const b = battle.battle;
+                const eventMode = battle.event.mode || "Bilinmiyor";
+                const mapName = battle.event.map || "Harita Yok";
+                const result = battle.battle.result;
+                const trophyChange = battle.battle.trophyChange || 0;
+                const duration = battle.battle.duration ? `${battle.battle.duration} sn` : "Belirsiz";
+                const type = battle.battle.type;
+
+                let myHero = "Bilinmiyor", myPower = 0, myTrophies = 0;
+                const allPlayers = battle.battle.teams ? battle.battle.teams.flat() : (battle.battle.players || []);
+                const normalizedTag = PLAYER_TAG.startsWith('#') ? PLAYER_TAG : '#' + PLAYER_TAG;
+                const me = allPlayers.find(p => p.tag === normalizedTag);
                 
-                let allPlayers = [];
-                if (b.teams) allPlayers = b.teams.flat();
-                else if (b.players) allPlayers = b.players;
-
-                const myTag = PLAYER_TAG.startsWith('#') ? PLAYER_TAG : '#' + PLAYER_TAG;
-                const me = allPlayers.find(p => p.tag === myTag);
-
-                let charName = "Bilinmiyor";
-                let kupa = 0;
-
                 if (me) {
-                    if (me.brawler && me.brawler.name) {
-                        charName = me.brawler.name;
-                        kupa = me.brawler.trophies || 0;
-                    } 
-                    else if (me.brawlers && me.brawlers.length > 0) {
-                        charName = me.brawlers.map(Hero => Hero.name).join(", ");
-                        kupa = me.brawlers[0].trophies || 0;
+                    if (me.brawler) {
+                        myHero = me.brawler.name || "Bilinmiyor";
+                        myPower = me.brawler.power || 0;
+                        myTrophies = me.brawler.trophies || 0;
+                    } else if (me.brawlers && me.brawlers.length > 0) {
+                        myHero = me.brawlers.map(b => b.name).join(", ");
+                        myPower = me.brawlers[0].power;
+                        myTrophies = me.brawlers[0].trophies;
                     }
                 }
 
-                let sonucEmoji = "🎮";
-                let sonucText = b.result || (b.rank ? `${b.rank}. Oldu` : "Tamamlandı");
-                if (b.result === 'victory') { sonucEmoji = "🏆"; sonucText = "ZAFER"; }
-                else if (b.result === 'defeat') { sonucEmoji = "❌"; sonucText = "YENİLGİ"; }
+                let resultEmoji = "❓", resultText = "SONUÇ YOK";
+                if (result === 'victory') { resultEmoji = "🏆"; resultText = "ZAFER"; }
+                else if (result === 'defeat') { resultEmoji = "❌"; resultText = "YENİLGİ"; }
+                else if (result === 'draw') { resultEmoji = "⚖️"; resultText = "BERABERE"; }
+                else if (battle.battle.rank) { 
+                    resultEmoji = battle.battle.rank === 1 ? "🥇" : "#️⃣";
+                    resultText = `${battle.battle.rank}. Oldun`;
+                }
 
-                const change = b.trophyChange !== undefined ? (b.trophyChange >= 0 ? `+${b.trophyChange}` : b.trophyChange) : "0";
+                const trophyStr = trophyChange >= 0 ? `+${trophyChange}` : `${trophyChange}`;
+                const isStarPlayer = battle.battle.starPlayer && battle.battle.starPlayer.tag === normalizedTag;
+                const starPlayerText = isStarPlayer ? "\n🌟 <b>YILDIZ OYUNCU!</b> 🌟" : "";
 
-                const msg = `<b>${sonucEmoji} ${sonucText}</b> (${change} Kupa)\n\n` +
-                            `👾 <b>Karakter:</b> ${charName}\n` +
-                            `🏆 <b>Kupa:</b> ${kupa}\n` +
-                            `🗺️ <b>Harita:</b> ${map}\n` +
-                            `🎮 <b>Mod:</b> ${mode.toUpperCase()}`;
+                const msg = `<b>${resultEmoji} SONUÇ: ${resultText}</b> (${trophyStr} Kupa)
 
-                const sent = await sendTelegram(msg);
-                if (sent) saveMatchToLog(battle.battleTime);
+👾 <b>Karakter:</b> ${myHero} (Sv. ${myPower})
+🏆 <b>Kupa:</b> ${myTrophies}
 
-            } catch (err) {
-                console.log("Maç atlandı, hata:", err.message);
-                saveMatchToLog(battle.battleTime); // Hata olsa da loga ekle ki takılmasın
+🗺️ <b>Harita:</b> ${mapName}
+🎮 <b>Mod:</b> ${eventMode.toUpperCase()}
+⏱️ <b>Süre:</b> ${duration}
+🎲 <b>Tip:</b> ${type}
+${starPlayerText}`;
+
+                const isSent = await sendTelegram(msg);
+
+                if (isSent) {
+                    saveMatchToLog(battle.battleTime);
+                } else {
+                    break; 
+                }
+            } catch (innerError) {
+                console.error("Maç işleme hatası:", innerError.message);
+                saveMatchToLog(battle.battleTime); // Hata veren maçı atla ki döngü bozulmasın
             }
+            
+            await new Promise(resolve => setTimeout(resolve, 1500));
         }
+
     } catch (error) {
-        console.log("API Hatası:", error.message);
+        console.error("Hata:", error.message);
     }
 }
 
