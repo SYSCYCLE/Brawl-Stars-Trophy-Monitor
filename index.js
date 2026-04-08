@@ -153,5 +153,3 @@ async function logCurrentIP() {
     }
 }
 logCurrentIP();
-
-const LOG_FILE = path.join(__dirname, 'processed_matches.log');
