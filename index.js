@@ -9,9 +9,9 @@ const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TG_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
 const LOG_FILE = path.join(__dirname, 'processed_matches.log');
-const ENCODED_TAG = PLAYER_TAG ? PLAYER_TAG.replace('#', '%23') : '';
 
-const API_URL = `https://royaleapi.dev/v1/players/${ENCODED_TAG}/battlelog`;
+const CLEAN_TAG = PLAYER_TAG.replace('#', ''); 
+const API_URL = `https://bsproxy.royaleapi.dev/v1/players/%23${CLEAN_TAG}/battlelog`;
 
 function getProcessedMatches() {
     if (!fs.existsSync(LOG_FILE)) return [];
