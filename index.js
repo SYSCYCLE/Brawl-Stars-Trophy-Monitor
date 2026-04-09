@@ -4,13 +4,13 @@ const fs = require('fs');
 const path = require('path');
 
 const BS_TOKEN = process.env.BRAWL_STARS_TOKEN;
-const PLAYER_TAG = process.env.PLAYER_TAG; 
+const PLAYER_TAG = process.env.PLAYER_TAG || "";
 const TG_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const TG_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
 const LOG_FILE = path.join(__dirname, 'processed_matches.log');
 
-const CLEAN_TAG = PLAYER_TAG.replace('#', ''); 
+const CLEAN_TAG = PLAYER_TAG.replace('#', '');
 const API_URL = `https://bsproxy.royaleapi.dev/v1/players/%23${CLEAN_TAG}/battlelog`;
 
 function getProcessedMatches() {
@@ -54,7 +54,11 @@ async function checkBattles() {
 
     try {
         const response = await axios.get(API_URL, {
-            headers: { 'Authorization': `Bearer ${BS_TOKEN}`, 'Accept': 'application/json' }
+            headers: { 
+                'Authorization': `Bearer ${BS_TOKEN}`, 
+                'Accept': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
         });
 
         const battles = response.data.items;
