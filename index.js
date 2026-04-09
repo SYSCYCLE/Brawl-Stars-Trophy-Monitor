@@ -10,7 +10,8 @@ const TG_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
 const LOG_FILE = path.join(__dirname, 'processed_matches.log');
 const ENCODED_TAG = PLAYER_TAG ? PLAYER_TAG.replace('#', '%23') : '';
-const API_URL = `https://api.brawlstars.com/v1/players/${ENCODED_TAG}/battlelog`;
+
+const API_URL = `https://royaleapi.dev{ENCODED_TAG}/battlelog`;
 
 function getProcessedMatches() {
     if (!fs.existsSync(LOG_FILE)) return [];
@@ -127,7 +128,7 @@ ${starPlayerText}`;
                 }
             } catch (innerError) {
                 console.error("Maç işleme hatası:", innerError.message);
-                saveMatchToLog(battle.battleTime); // Hata veren maçı atla ki döngü bozulmasın
+                saveMatchToLog(battle.battleTime); 
             }
             
             await new Promise(resolve => setTimeout(resolve, 1500));
@@ -141,15 +142,4 @@ ${starPlayerText}`;
 setInterval(checkBattles, 5000);
 checkBattles();
 
-async function logCurrentIP() {
-    try {
-        const res = await axios.get('https://api.ipify.org?format=json');
-        console.log("-----------------------------------------");
-        console.log("RENDER ANLIK IP ADRESİNİZ:", res.data.ip);
-        console.log("Bu IP'yi Brawl Stars Developer Portal'a ekleyin.");
-        console.log("-----------------------------------------");
-    } catch (err) {
-        console.error("IP Adresi alınamadı.");
-    }
-}
-logCurrentIP();
+console.log("Sistem RoyaleAPI Proxy üzerinden çalışıyor...");
