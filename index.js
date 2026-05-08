@@ -13,11 +13,13 @@ const LOG_FILE = path.join(__dirname, 'processed_matches.log');
 const CLEAN_TAG = PLAYER_TAG.replace('#', '');
 const API_URL = `https://bsproxy.royaleapi.dev/v1/players/%23${CLEAN_TAG}/battlelog`;
 
+let isChecking = false;
+
 function getProcessedMatches() {
-    if (!fs.existsSync(LOG_FILE)) return [];
+    if (!fs.existsSync(LOG_FILE)) return[];
     try {
         return fs.readFileSync(LOG_FILE, 'utf8').split('\n').filter(Boolean);
-    } catch (e) { return []; }
+    } catch (e) { return[]; }
 }
 
 function saveMatchToLog(battleTime) {
@@ -33,6 +35,11 @@ const server = http.createServer((req, res) => {
 });
 server.listen(process.env.PORT || 3000);
 
+function escapeHTML(text) {
+    if (!text) return "";
+    return text.toString().replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 async function sendTelegram(message) {
     if (!TG_TOKEN || !TG_CHAT_ID) return false;
     try {
@@ -44,13 +51,16 @@ async function sendTelegram(message) {
         });
         return true;
     } catch (err) {
-        console.error("TG Hata:", err.message);
+        console.error("TG Hata (Gönderim başarısız):", err.message);
         return false;
     }
 }
 
 async function checkBattles() {
     if (!BS_TOKEN || !PLAYER_TAG) return;
+
+    if (isChecking) return; 
+    isChecking = true; 
 
     try {
         const response = await axios.get(API_URL, {
@@ -62,12 +72,16 @@ async function checkBattles() {
         });
 
         const battles = response.data.items;
-        if (!battles || battles.length === 0) return;
+        if (!battles || battles.length === 0) {
+            isChecking = false;
+            return;
+        }
 
         const processedMatches = getProcessedMatches();
         
         if (processedMatches.length === 0) {
             battles.forEach(b => saveMatchToLog(b.battleTime));
+            isChecking = false;
             return;
         }
         
@@ -75,25 +89,25 @@ async function checkBattles() {
 
         for (const battle of newBattles) {
             try {
-                const eventMode = battle.event.mode || "Bilinmiyor";
-                const mapName = battle.event.map || "Harita Yok";
+                const eventMode = escapeHTML(battle.event.mode || "Bilinmiyor");
+                const mapName = escapeHTML(battle.event.map || "Harita Yok");
                 const result = battle.battle.result;
                 const trophyChange = battle.battle.trophyChange || 0;
                 const duration = battle.battle.duration ? `${battle.battle.duration} sn` : "Belirsiz";
-                const type = battle.battle.type;
+                const type = escapeHTML(battle.battle.type || "Bilinmiyor");
 
                 let myHero = "Bilinmiyor", myPower = 0, myTrophies = 0;
-                const allPlayers = battle.battle.teams ? battle.battle.teams.flat() : (battle.battle.players || []);
+                const allPlayers = battle.battle.teams ? battle.battle.teams.flat() : (battle.battle.players ||[]);
                 const normalizedTag = PLAYER_TAG.startsWith('#') ? PLAYER_TAG : '#' + PLAYER_TAG;
                 const me = allPlayers.find(p => p.tag === normalizedTag);
                 
                 if (me) {
                     if (me.brawler) {
-                        myHero = me.brawler.name || "Bilinmiyor";
+                        myHero = escapeHTML(me.brawler.name || "Bilinmiyor");
                         myPower = me.brawler.power || 0;
                         myTrophies = me.brawler.trophies || 0;
                     } else if (me.brawlers && me.brawlers.length > 0) {
-                        myHero = me.brawlers.map(b => b.name).join(", ");
+                        myHero = escapeHTML(me.brawlers.map(b => b.name).join(", "));
                         myPower = me.brawlers[0].power;
                         myTrophies = me.brawlers[0].trophies;
                     }
@@ -128,11 +142,12 @@ ${starPlayerText}`;
                 if (isSent) {
                     saveMatchToLog(battle.battleTime);
                 } else {
-                    break; 
+                    console.log("Mesaj gönderilemedi, sonraki turda tekrar denenecek.");
+                    break;
                 }
+                
             } catch (innerError) {
                 console.error("Maç işleme hatası:", innerError.message);
-                saveMatchToLog(battle.battleTime); 
             }
             
             await new Promise(resolve => setTimeout(resolve, 1500));
@@ -140,6 +155,8 @@ ${starPlayerText}`;
 
     } catch (error) {
         console.error("Hata:", error.message);
+    } finally {
+        isChecking = false; 
     }
 }
 
