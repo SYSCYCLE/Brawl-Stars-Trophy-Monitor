@@ -11,18 +11,15 @@ const TG_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 const LOG_FILE = path.join(__dirname, 'processed_matches.log');
 
 const CLEAN_TAG = PLAYER_TAG.replace('#', '');
-
-const WORKER_URL = 'https://brawl-stars-trophy-monitor.syscycle.workers.dev'; 
-
-const API_URL = `${WORKER_URL}/v1/players/%23${CLEAN_TAG}/battlelog`;
+const API_URL = `https://bsproxy.royaleapi.dev/v1/players/%23${CLEAN_TAG}/battlelog`;
 
 let isChecking = false;
 
 function getProcessedMatches() {
-    if (!fs.existsSync(LOG_FILE)) return [];
+    if (!fs.existsSync(LOG_FILE)) return[];
     try {
         return fs.readFileSync(LOG_FILE, 'utf8').split('\n').filter(Boolean);
-    } catch (e) { return []; }
+    } catch (e) { return[]; }
 }
 
 function saveMatchToLog(battleTime) {
@@ -100,7 +97,7 @@ async function checkBattles() {
                 const type = escapeHTML(battle.battle.type || "Bilinmiyor");
 
                 let myHero = "Bilinmiyor", myPower = 0, myTrophies = 0;
-                const allPlayers = battle.battle.teams ? battle.battle.teams.flat() : (battle.battle.players || []);
+                const allPlayers = battle.battle.teams ? battle.battle.teams.flat() : (battle.battle.players ||[]);
                 const normalizedTag = PLAYER_TAG.startsWith('#') ? PLAYER_TAG : '#' + PLAYER_TAG;
                 const me = allPlayers.find(p => p.tag === normalizedTag);
                 
@@ -166,4 +163,4 @@ ${starPlayerText}`;
 setInterval(checkBattles, 15000);
 checkBattles();
 
-console.log("Sistem Cloudflare Köprüsü üzerinden çalışıyor...");
+console.log("Sistem RoyaleAPI Proxy üzerinden çalışıyor...");
